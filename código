@@ -1,0 +1,145 @@
+//******************************************/
+// Universidad del Valle de Guatemala
+// BE3029 - Electronica Digital 2
+// Abby Barrios
+// 08/08/2025
+// Laboratorio 4 PWM
+// MCU: ESP32 dev kit 1.0
+//******************************************/
+
+//******************************************/
+// Librerias
+//******************************************/
+#include <Arduino.h>
+#include <stdint.h>
+
+//******************************************/
+// Definiciones
+//******************************************/
+// Pines de LEDS
+#define LED_R 21
+#define LED_G 19
+#define LED_B 18
+
+// BOTONES
+#define BOTON_COLOR 25 //Selección de modo
+#define BOTON_BRILLO 26 //Nivel del brillo
+#define BOTON_SERVO_DER 33 //Servo a la derecha
+#define BOTON_SERVO_IZQ 32 //Servo a la izquierda
+#define SERVO_PIN 27 //Servo
+
+// #2 Escoger canales
+#define CH_R 0
+#define CH_V 1
+#define CH_A 2
+#define CH_SERVO 3 //Servo
+
+//Datos para LEDs
+#define FREQ 5000  // #3 Escoger la frecuencia del PWM 
+#define RESOLUTION 8 // #4 Escogemos resolución de PWM
+
+//Datos para el servo
+#define FREQ_SERVO 50 // #3 Escoger la frecuencia del PWM 
+#define RESOLUTION_SERVO 8 // #4 Escogemos resolución de PWM
+
+//******************************************/
+// Variables globales 
+//******************************************/
+//MODOS
+int modoSeleccionado = 0; // 0=Rojo, 1=Verde, 2=Azul, 3=Servo
+
+//BRILLO
+int nivelBrillo[3] = {0, 0, 0};
+const int niveles[5] = {0, 50, 120, 200, 250};
+int indiceNivel[3] = {0, 0, 0};
+
+//SERVO
+//duty = {6,13,19,26,32}
+const uint8_t servoDuty[5] = {6, 13, 19, 26, 32};
+int idxServo = 2; //1500us aproximadamente
+
+// Antirrebote
+unsigned long tColor = 0, tBrillo = 0, tDer = 0, tIzq = 0;
+const unsigned long debounceTime = 200;
+
+//******************************************/
+// Configuracion
+//******************************************/
+void setup() {
+  Serial.begin(115200);
+
+  //PWM para LEDs
+  ledcSetup(CH_R, FREQ, RESOLUTION);
+  ledcSetup(CH_V, FREQ, RESOLUTION);
+  ledcSetup(CH_A, FREQ, RESOLUTION);
+  ledcAttachPin(LED_R, CH_R);
+  ledcAttachPin(LED_G, CH_V);
+  ledcAttachPin(LED_B, CH_A);
+
+  //PWM para Servo 
+  ledcSetup(CH_SERVO, FREQ_SERVO, RESOLUTION_SERVO);
+  ledcAttachPin(SERVO_PIN, CH_SERVO);
+  ledcWrite(CH_SERVO, servoDuty[idxServo]); //INICIA
+
+  // Setup de botones PULLUP
+  pinMode(BOTON_COLOR, INPUT_PULLUP);
+  pinMode(BOTON_BRILLO, INPUT_PULLUP);
+  pinMode(BOTON_SERVO_DER, INPUT_PULLUP);
+  pinMode(BOTON_SERVO_IZQ, INPUT_PULLUP);
+}
+
+//******************************************/
+// Loop Principal
+//******************************************/
+void loop() {
+  //Botón de selección de modo
+  if (digitalRead(BOTON_COLOR) == LOW && (millis() - tColor > debounceTime)) {
+    modoSeleccionado = (modoSeleccionado + 1) % 4;
+    tColor = millis();
+  }
+
+  //Botón para brillo en modo de culquier LED 
+  if (modoSeleccionado <= 2) {
+    if (digitalRead(BOTON_BRILLO) == LOW && (millis() - tBrillo > debounceTime)) {
+      int c = modoSeleccionado; // 0=Rojo, 1=Verde, 2=Azul
+      indiceNivel[c] = (indiceNivel[c] + 1) % 5; //Pasa al siguiente dato de brillo cuando lo presiono, del 0 al 5
+      nivelBrillo[c] = niveles[indiceNivel[c]]; // De 0 a 255
+
+      //Salidas PWM de LEDs
+      ledcWrite(CH_R, nivelBrillo[0]);
+      ledcWrite(CH_V, nivelBrillo[1]);
+      ledcWrite(CH_A, nivelBrillo[2]);
+      tBrillo = millis();
+    }
+  }
+
+  //Mueve el servo en 5 estados 
+  if (modoSeleccionado == 3) {
+    // Botón a la derecha 
+    if (digitalRead(BOTON_SERVO_DER) == LOW && (millis() - tDer > debounceTime)) {
+      if (idxServo < 4) idxServo++;
+      ledcWrite(CH_SERVO, servoDuty[idxServo]);
+      tDer = millis();
+    }
+
+    // Botón a la izquierda 
+    if (digitalRead(BOTON_SERVO_IZQ) == LOW && (millis() - tIzq > debounceTime)) {
+      if (idxServo > 0) idxServo--;
+      ledcWrite(CH_SERVO, servoDuty[idxServo]);
+      tIzq = millis();
+    }
+
+    //PARTE C -- Color de LEDs según posición de servo
+    // idx 0 = apagado
+    // idx 4 = apagado
+    int r = 0, g = 0, b = 0;
+    if (idxServo == 1) { r = 200; g = 0;   b = 0;   }     // idx 1 = rojo
+    if (idxServo == 2) { r = 0;   g = 200; b = 0;   }    // idx 2 = verde
+    if (idxServo == 3) { r = 0;   g = 0;   b = 200; }    // idx 3 = azul
+
+    //Salida de LEDs 
+    ledcWrite(CH_R, r);
+    ledcWrite(CH_V, g);
+    ledcWrite(CH_A, b);
+  }
+}
