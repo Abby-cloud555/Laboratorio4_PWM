@@ -113,6 +113,20 @@ void loop() {
     }
   }
 
+  //PARTE B -> mover el servo independientemente de en que modo estamos 
+  if (modoSeleccionado <= 2) { //Modo de LEDS 
+    if (digitalRead(BOTON_SERVO_DER) == LOW && (millis() - tDer > debounceTime)) {
+      if (idxServo < 4) idxServo++; //Aumenta posición del servo 
+      ledcWrite(CH_SERVO, servoDuty[idxServo]); //Mueve el servo a nueva posición 
+      tDer = millis();
+    }
+    if (digitalRead(BOTON_SERVO_IZQ) == LOW && (millis() - tIzq > debounceTime)) {
+      if (idxServo > 0) idxServo--; //Disminuye posición del servo 
+      ledcWrite(CH_SERVO, servoDuty[idxServo]);  //Mueve el servo a nueva posición 
+      tIzq = millis();
+    }
+  }
+
   //Mueve el servo en 5 estados 
   if (modoSeleccionado == 3) {
     // Botón a la derecha 
